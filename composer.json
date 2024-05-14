@@ -1,0 +1,25 @@
+{
+    "name": "shoplic/continy",
+    "description": "Tiny container for WP plugins and themes.",
+    "homepage": "https://github.com/shoplic-kr/continy",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload": {
+        "psr-4": {
+            "Shoplic\\Continy\\": "src/"
+        },
+        "files": [
+            "src/bootstrap.php"
+        ]
+    },
+    "authors": [
+        {
+            "name": "changwoo",
+            "email": "changwoo@shoplic.kr"
+        }
+    ],
+    "minimum-stability": "alpha",
+    "require": {
+        "php": ">=8.0"
+    }
+}
