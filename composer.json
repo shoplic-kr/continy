@@ -18,7 +18,6 @@
             "email": "changwoo@shoplic.kr"
         }
     ],
-    "minimum-stability": "alpha",
     "require": {
         "php": ">=8.0"
     }
