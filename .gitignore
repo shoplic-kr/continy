@@ -1,5 +1,10 @@
 .DS_Store
 .idea
 .vscode
+.env.*
 
-vendor
+*.cache
+
+/tests-core
+/tests-lib
+/vendor
