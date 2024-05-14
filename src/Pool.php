@@ -18,16 +18,21 @@ final class Pool
         return self::$instance;
     }
 
-    public static function add(string $key, Continy $item): void
+    public static function add(Continy $item): Continy
     {
+        self::getInstance()->items[$item->getKey()] = $item;
+
+        return $item;
     }
 
-    public static function get(string $key): Continy|null
+    public static function get(string $itemKey): Continy|null
     {
+        return self::getInstance()->items[$itemKey] ?? null;
     }
 
-    public static function remove(string $key): void
+    public static function remove(string $itemKey): void
     {
+        unset(self::getInstance()->items[$itemKey]);
     }
 
     private function __construct()

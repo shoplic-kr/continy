@@ -9,7 +9,7 @@
       "ShoplicKr\\Continy\\": "src/"
     },
     "files": [
-      "src/bootstrap.php"
+      "src/facade.php"
     ]
   },
   "authors": [

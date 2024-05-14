@@ -4,20 +4,22 @@ namespace ShoplicKr\Continy;
 
 class Config
 {
-    private string $main;
-    private string $version;
-
-    public function __construct(array $config = [])
+    public function __construct(private string $mainFile, private string $slug, private string $version)
     {
-        $this->main    = $config['main'] ?? '';
-        $this->version = $config['version'] ?? '';
     }
 
-    public function getMain(): string {
-        return $this->main;
+    public function getMain(): string
+    {
+        return $this->mainFile;
     }
 
-    public function getVersion(): string {
+    public function getSlug(): string
+    {
+        return $this->slug;
+    }
+
+    public function getVersion(): string
+    {
         return $this->version;
     }
 }
