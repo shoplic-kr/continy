@@ -1,24 +1,27 @@
 {
-    "name": "shoplic-kr/continy",
-    "description": "Tiny container for WP plugins and themes.",
-    "homepage": "https://github.com/shoplic-kr/continy",
-    "type": "library",
-    "license": "GPL-2.0-or-later",
-    "autoload": {
-        "psr-4": {
-            "Shoplic\\Continy\\": "src/"
-        },
-        "files": [
-            "src/bootstrap.php"
-        ]
+  "name": "shoplic-kr/continy",
+  "description": "Tiny container for WP plugins and themes.",
+  "homepage": "https://github.com/shoplic-kr/continy",
+  "type": "library",
+  "license": "GPL-2.0-or-later",
+  "autoload": {
+    "psr-4": {
+      "ShoplicKr\\Continy\\": "src/"
     },
-    "authors": [
-        {
-            "name": "changwoo",
-            "email": "changwoo@shoplic.kr"
-        }
-    ],
-    "require": {
-        "php": ">=8.0"
+    "files": [
+      "src/bootstrap.php"
+    ]
+  },
+  "authors": [
+    {
+      "name": "changwoo",
+      "email": "changwoo@shoplic.kr"
     }
+  ],
+  "require": {
+    "php": ">=8.0",
+    "psr/container": "^2.0"
+  },
+  "minimum-stability": "alpha",
+  "version": "0.0.1"
 }
