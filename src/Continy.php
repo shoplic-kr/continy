@@ -4,29 +4,33 @@ declare(strict_types=1);
 
 namespace ShoplicKr\Continy;
 
+/**
+ * Continy - A tiny container class for WordPress plugin and theme development that supports really simple D.I.
+ *
+ * Glossary
+ * --------
+ * Component: Any instance which Continy can store. Usually continy itself, module instances, and support instances.
+ * Module:    A special form of component for initializing plugin or theme.
+ *            Instantiated by add_action() function call when Continy is getting started.
+ * Support:   Another special form of component. As the name says, it is to assist module components in many ways.
+ * Alias:
+ */
 class Continy implements Container
 {
     /**
-     * System-defined modules.
+     * Component storage.
+     *
+     * Usually keys are FQCNs, and values are instances of components.
      *
      * @var array<string, mixed>
      */
-    private $baseModules = [];
+    private $storage = [];
 
     /**
-     * User-defined modules.
+     * Array of component names that are resolved.
      *
-     * Usually keys are FQNs, and values are instances of Module.
-     *
-     * @var array<string, mixed>
-     */
-    private $modules = [];
-
-    /**
-     * Array of module names that are resolved.
-     *
-     * Key:   Queried module names, they are origin module names provided by client plugins.
-     * Value: FQN.
+     * Key:   Component name
+     * Value: FQCN
      *
      * @var array<string, string>
      */
@@ -49,22 +53,22 @@ class Continy implements Container
             throw new ContinyException("'mainFile' is required");
         }
 
-        $this->initialize($setup);
+        $this->initializeModules($setup);
     }
 
     public function __get(string $name)
     {
-        return $this->modules[$name] ?? $this->baseModules[$name] ?? null;
+        return $this->storage[$name] ?? null;
     }
 
     public function __set(string $name, $value)
     {
-        $this->modules[$name] = $value;
+        $this->storage[$name] = $value;
     }
 
     public function __isset(string $name)
     {
-        return isset($this->modules[$name]) || isset($this->baseModules[$name]);
+        return isset($this->storage[$name]) || isset($this->reserved[$name]);
     }
 
     /**
@@ -74,11 +78,17 @@ class Continy implements Container
      * @throws \ShoplicKr\Continy\ContinyException
      * @throws \ShoplicKr\Continy\ContinyNotFoundException
      */
-    public function get(string $id)
+    public function get(string $id): mixed
     {
+        if (empty($id)) {
+            throw new ContinyException("'$id' is required");
+        }
+
         if ( ! $this->has($id)) {
             throw new ContinyNotFoundException(sprintf("The container does not have '%s' item.", $id));
         }
+
+        return $this->instantiate($id);
     }
 
     public function getMain(): string
@@ -129,20 +139,22 @@ class Continy implements Container
     }
 
     /**
+     * Grab setup and initialize modules defined in the setup.
+     *
      * @throws \ShoplicKr\Continy\ContinyException
      */
-    private function initialize(array|string $setup): void
+    private function initializeModules(array|string $moduleSetup): void
     {
         // Load setup if it is a file.
-        if (is_string($setup)) {
-            if ( ! file_exists($setup)) {
-                throw new ContinyException("When 'setup' is a string, it should be an existing file");
+        if (is_string($moduleSetup)) {
+            if ( ! file_exists($moduleSetup)) {
+                throw new ContinyException("When 'setup' is a string, it should be an existing file.");
             }
-            $setup = (array)include $setup;
+            $moduleSetup = (array)include $moduleSetup;
         }
 
-        foreach ($setup as $hook => $items) {
-            foreach ($items as $priority => $item) {
+        foreach ($moduleSetup as $hook => $moduleItems) {
+            foreach ($moduleItems as $priority => $item) {
                 $priority     = (int)$priority;
                 $module       = '';
                 $name         = '';
@@ -252,24 +264,22 @@ class Continy implements Container
     }
 
     /**
-     * @param string $module
+     * Get FQCN (Fully Qualified Class Name) from module name
+     *
+     * @param string $moduleName
      *
      * @return string|false FQN of module, or false
      */
-    private function locate(string $module): string|false
+    private function moduleNameToFqcn(string $moduleName): string|false
     {
-        $maybeGlobal = str_replace(
-            ['/', '-'],
-            ['\\', '_'],
-            $module,
-        );
-        if (class_exists($maybeGlobal)) {
-            return $maybeGlobal;
+        $globally = str_replace(['/', '-'], ['\\', '_'], $moduleName);
+        if (class_exists($globally)) {
+            return $globally;
         }
 
-        $maybeLocal = $this->prefix . $maybeGlobal;
-        if (class_exists($maybeLocal)) {
-            return $maybeLocal;
+        $locally = $this->prefix . $globally;
+        if (class_exists($locally)) {
+            return $locally;
         }
 
         return false;
@@ -284,7 +294,7 @@ class Continy implements Container
     {
         if ( ! isset($this->resolved[$module])) {
             // Make sure that $this->$name is instantiated by now.
-            $this->resolved[$module] = $this->locate($module;
+            $this->resolved[$module] = $this->moduleNameToFqcn($module;
         }
 
         return $this->resolved[$module];
