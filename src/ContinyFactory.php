@@ -9,35 +9,29 @@ class ContinyFactory
     /**
      * @throws \ShoplicKr\Continy\ContinyException
      */
-    public static function create(array $args): Continy
+    public static function create(array|string $setup): Continy
     {
-        $args = wp_parse_args(
-            $args,
-            [
-                'mainFile' => '',
-                'setup'    => '',
-                'prefix'   => '',
-                'version'  => '0.0.0',
-            ],
-        );
+        if (is_string($setup)) {
+            if (empty($setup) || ! file_exists($setup) || ! is_readable($setup)) {
+                throw new ContinyException(
+                    'When $setup is a string, it should be an existing file path. ' .
+                    "File '$setup' cannot be found.",
+                );
+            }
+            $setup = (array)include $setup;
+        }
 
-        if (empty($args['mainFile'])) {
+        // Try to guess mainFile, but it is discouraged.
+        if (empty($setup['main_file'])) {
             $trace = debug_backtrace();
             $top   = array_shift($trace);
             if ($top) {
-                $args['mainFile'] = $top['file'];
+                $setup['main_file'] = $top['file'];
             }
         }
 
-        if (empty($args['setup']) && file_exists($args['mainFile'])) {
-            $args['setup'] = dirname($args['mainFile']) . '/conf/setup.php';
-        }
+        // Explicit version string is recommended.
 
-        return new Continy(
-            mainFile: $args['mainFile'],
-            prefix:   $args['prefix'],
-            setup:    $args['setup'],
-            version:  $args['version'],
-        );
+        return new Continy($setup);
     }
 }

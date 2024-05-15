@@ -17,6 +17,19 @@ namespace ShoplicKr\Continy;
  */
 class Continy implements Container
 {
+    /* Priority constants */
+    public const PR_URGENT    = -10000;
+    public const PR_VERY_HIGH = 1;
+    public const PR_HIGH      = 5;
+    public const PR_DEFAULT   = 10;
+    public const PR_LOW       = 50;
+    public const PR_VERY_LOW  = 100;
+    public const PR_LAZY      = 10000;
+
+    private string $mainFile = '';
+    private string $prefix   = '';
+    private string $version  = '';
+
     /**
      * Component storage.
      *
@@ -39,21 +52,34 @@ class Continy implements Container
     /**
      * @throws \ShoplicKr\Continy\ContinyException
      */
-    public function __construct(
-        private string $mainFile,
-        private string $prefix,
-        string|array   $setup,
-        private string $version,
-    ) {
-        if (str_ends_with($this->prefix, '\\')) {
+    public function __construct(array $args = [])
+    {
+        $defaults = [
+            'main_file' => '',
+            'version'   => '0.0.0',
+            'prefix'    => '',
+            'modules'   => [],
+        ];
+
+        $args = wp_parse_args($args, $defaults);
+
+        if (empty($args['main_file'])) {
+            throw new ContinyException("'main_file' is required");
+        }
+
+        if ($args['prefix'] && ! str_ends_with($args['prefix'], '\\')) {
             $this->prefix .= '\\';
         }
 
-        if (empty($this->mainFile)) {
-            throw new ContinyException("'mainFile' is required");
+        if (empty($args['version'])) {
+            $args['version'] = $defaults['version'];
         }
 
-        $this->initializeModules($setup);
+        $this->mainFile = $args['main_file'];
+        $this->prefix   = $args['prefix'];
+        $this->version  = $args['version'];
+
+        $this->initialize($args);
     }
 
     public function __get(string $name)
@@ -106,9 +132,13 @@ class Continy implements Container
         return class_exists($id) || isset($this->resolved[$id]);
     }
 
-    private function bindModule(string|callable $module, string $name, array $args): \Closure
+    private function bindModule(string|callable $module, string $property, array $args): \Closure
     {
-        return function () use ($module, $name, $args) {
+        if (empty($property) && is_string($module)) {
+            $property = str_replace(['/', '\\'], '', lcfirst(str_replace('-', '_', $module)));
+        }
+
+        return function () use ($module, $property, $args) {
             if (is_callable($module)) {
                 return $module;
             }
@@ -122,11 +152,11 @@ class Continy implements Container
                     if (is_callable($split[0])) {
                         call_user_func_array($split[0], $args);
                     } else {
-                        $this->instantiateModule($split[0], $name, $args);
+                        $this->instantiateModule($split[0], $property, $args);
                     }
                 } else {
                     // 2 === $count
-                    $callback = [$this->instantiateModule($split[0], $name, $args), $split[1]];
+                    $callback = [$this->instantiateModule($split[0], $property, $args), $split[1]];
                     if (is_callable($callback)) {
                         call_user_func_array($callback, $args);
                     }
@@ -139,42 +169,38 @@ class Continy implements Container
     }
 
     /**
-     * Grab setup and initialize modules defined in the setup.
+     * More specific initialization
      *
-     * @throws \ShoplicKr\Continy\ContinyException
+     * @param array $setup
+     *
+     * @used-by __construct()
+     *
+     * @return void
      */
-    private function initializeModules(array|string $moduleSetup): void
+    private function initialize(array $setup): void
     {
-        // Load setup if it is a file.
-        if (is_string($moduleSetup)) {
-            if ( ! file_exists($moduleSetup)) {
-                throw new ContinyException("When 'setup' is a string, it should be an existing file.");
-            }
-            $moduleSetup = (array)include $moduleSetup;
-        }
+        // TODO: 2024-05-15 여기 점검을 마지막으로 했음. 여기서부터 코드 진행을 체크해 봐야 함.
+        foreach ($setup['modules'] ?? [] as $hook => $items) {
+            $acceptedArgs = (int)($items['accepted_args'] ?? 1);
+            unset($items['accepted_args']);
 
-        foreach ($moduleSetup as $hook => $moduleItems) {
-            foreach ($moduleItems as $priority => $item) {
-                $priority     = (int)$priority;
-                $module       = '';
-                $name         = '';
-                $args         = [];
-                $acceptedArgs = 1;
+            foreach ($items as $priority => $item) {
+                $priority = (int)$priority;
+                $module   = '';
+                $property = '';
+                $args     = [];
 
                 if (is_array($item)) {
-                    $module       = $item['module'] ?? '';
-                    $name         = $item['name'] ?? '';
-                    $args         = $item['args'] ?? [];
-                    $acceptedArgs = $item['acceptedArgs'] ?? 1;
+                    $module   = $item['module'] ?? '';
+                    $property = $item['property'] ?? '';
+                    $args     = $item['args'] ?? [];
                 } elseif (is_string($item) || is_callable($item)) {
                     $module = $item;
                 }
 
-                if (empty($name) && is_string($module)) {
-                    $name = str_replace(['/', '\\'], '', lcfirst(str_replace('-', '_', $module)));
+                if ($module) {
+                    add_action($hook, $this->bindModule($module, $property, $args), $priority, $acceptedArgs);
                 }
-
-                add_action($hook, $this->bindModule($module, $name, $args), $priority, $acceptedArgs);
             }
         }
     }
@@ -294,7 +320,7 @@ class Continy implements Container
     {
         if ( ! isset($this->resolved[$module])) {
             // Make sure that $this->$name is instantiated by now.
-            $this->resolved[$module] = $this->moduleNameToFqcn($module;
+            $this->resolved[$module] = $this->moduleNameToFqcn($module);
         }
 
         return $this->resolved[$module];

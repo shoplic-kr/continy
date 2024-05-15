@@ -23,7 +23,8 @@ composer dump-autoload
 composer dump-autoload -a # 최적화 버전
 ```
 
-그다음, 아래처럼 `Shoplic\Continy\bootstrap()` 함수를 실행하면 됩니다.
+그다음 아래의 예시처럼 `myPlugin()` 래퍼 함수를 각자의 플러그인이나 테마에서 구현합니다.
+이렇게 Continy 객체를 생성하면, 처음 호출 때 필요한 과정이 실행됩니다.
 
 ```php
 <?php
@@ -36,17 +37,59 @@ composer dump-autoload -a # 최적화 버전
 require_once __DIR__ . './vendor/autoload.php';
 
 // 플러그인에서 도움이 되는 래퍼 함수 생성
-if ( !function_exists( 'myp' ) ) {
-    ShoplicKr\Continy\bootstrap( 'my-plugin', [
-        'mainFile' => __FILE__,    // 플러그인 메인 파일
-        'version'  => '1.0.0',     // 플러그인 버전 
-    ]);
-    
-    function myp(): ShoplicKr\Continy\Continy {
-        return ShoplicKr\Continy\retrieve('my-plugin');
+if ( !function_exists( 'myPlugin' ) ) {
+    /**
+     * Wrapper function
+     * 
+     * @return \ShoplicKr\Continy\Continy
+     * @throws \ShoplicKr\Continy\ContinyException
+     */
+    function myPlugin(): ShoplicKr\Continy\Continy {
+        static $continy = null;
+        
+        if (is_null($continy)) {
+            $continy = ShoplicKr\Continy\ContinyFactory::create(__DIR__ . '/conf/setup.php');
+        }
+        
+        return $continy;
     }
 }
 
-// 이후 플러그인 어디서든,
-myp()->get(...);
+// 플러그인 시동하기
+myPlugin();
 ```
+
+## 모듈 설정하기
+
+워드프레스의 플러그인과 테마 개발의 핵심은 적절한 액션, 혹은 필터를 추가하는 것입니다.
+액션과 필터를 추가할 때는 반드시 콜백 함수를 명시하게 되어 있는데, 이 콜백 함수에서 우리가 원하는 동작을 구현합니다.
+
+워드프레스 코어에 우리가 원하는 기능을 구현하기 위해야, 그리고 보다 쉽게 해당 기능을 관리하기 위해 '모듈'이라는 콤포넌트를 사용합니다.
+적절한 기능들을 의미적으로 묶어 하나의 독립적인 모듈로 표현하는 것입니다.
+
+Continy는 처음 실행될 때 이렇게 작성된 모듈을 불러오도록 되어 있습니다.
+각 모듈은 지정한 add_action() 의 콜백으로 사용되며, 설정에서는 각 모듈의 add_action()을 제어할 수 있도록 옵션을 제공합니다.
+
+설정은 직접 배열로 입력하거나, 배열을 리턴하는 파일의 경로를 지정할 수도 있습니다.
+아래는 그 예입니다.
+
+```php
+<?php
+// create() 부분만 예시로 듭니다.
+// 옵션 #1: 설정 파일이 있는 경로 지정하기
+$continy = ShoplicKr\Continy\ContinyFactory::create(__DIR__ . '/conf/setup.php');
+
+// 옵션 #2: 직접 설정을 배열로 넣기
+$continy = ShoplicKr\Continy\ContinyFactory::create(
+    [
+        'main_file' => __FILE__,
+        'version'   => '1.0.0',
+        'modules'   => [
+            // ...
+        ],
+    ],
+);
+```
+
+두 옵션은 결과적으로 같은 동작을 합니다. 설정 배열을 create()에 제공하는 것입니다.
+이 배열의 구조를 파일 경로로 지정하는지, 아니면 직접 지정하는지 선택하는 것입니다.
