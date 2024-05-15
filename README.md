@@ -37,9 +37,8 @@ require_once __DIR__ . './vendor/autoload.php';
 
 // 플러그인에서 도움이 되는 래퍼 함수 생성
 if ( !function_exists( 'myp' ) ) {
-    ShoplicKr\Continy\bootstrap([
+    ShoplicKr\Continy\bootstrap( 'my-plugin', [
         'mainFile' => __FILE__,    // 플러그인 메인 파일
-        'slug'     => 'my-plugin', // 플러그인의 고유한 이름
         'version'  => '1.0.0',     // 플러그인 버전 
     ]);
     

@@ -2,9 +2,9 @@
 
 namespace ShoplicKr\Continy {
 
-    function bootstrap(array|string|Config $configuration = []): Continy
+    function bootstrap(string $slug, array $configuration = []): Continy
     {
-        return Pool::add(ContinyFactory::create($configuration));
+        return Pool::add($slug, ContinyFactory::create($configuration));
     }
 
     function retrieve(string $key): Continy|null
