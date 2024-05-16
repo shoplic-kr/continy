@@ -26,9 +26,9 @@ class Continy implements Container
     public const PR_VERY_LOW  = 100;
     public const PR_LAZY      = 10000;
 
-    private string $mainFile = '';
-    private string $prefix   = '';
-    private string $version  = '';
+    private string $mainFile       = '';
+    private string $moduleNsPrefix = '';
+    private string $version        = '';
 
     /**
      * Component storage.
@@ -37,7 +37,7 @@ class Continy implements Container
      *
      * @var array<string, mixed>
      */
-    private $storage = [];
+    private array $storage = [];
 
     /**
      * Array of component names that are resolved.
@@ -57,8 +57,11 @@ class Continy implements Container
         $defaults = [
             'main_file' => '',
             'version'   => '0.0.0',
-            'prefix'    => '',
-            'modules'   => [],
+            'modules'   => [
+                'ns_prefix' => '',
+            ],
+            // TODO: bindings 구현.
+            'bindings'  => [],
         ];
 
         $args = wp_parse_args($args, $defaults);
@@ -67,17 +70,22 @@ class Continy implements Container
             throw new ContinyException("'main_file' is required");
         }
 
-        if ($args['prefix'] && ! str_ends_with($args['prefix'], '\\')) {
-            $this->prefix .= '\\';
-        }
-
         if (empty($args['version'])) {
             $args['version'] = $defaults['version'];
         }
 
+        if (empty($args['modules'])) {
+            $args['modules'] = $defaults['modules'];
+        }
+
         $this->mainFile = $args['main_file'];
-        $this->prefix   = $args['prefix'];
         $this->version  = $args['version'];
+
+        $this->moduleNsPrefix = $args['modules']['ns_prefix'] ?? '';
+        unset($args['modules']['ns_prefix']);
+        if ( ! str_ends_with($this->moduleNsPrefix, '\\')) {
+            $this->moduleNsPrefix .= '\\';
+        }
 
         $this->initialize($args);
     }
@@ -132,25 +140,22 @@ class Continy implements Container
         return class_exists($id) || isset($this->resolved[$id]);
     }
 
-    private function bindModule(string|callable $module, string $property, array $args): \Closure
+    private function bindModule(string|callable $module, string $property, array|callable|null $args): \Closure
     {
-        if (empty($property) && is_string($module)) {
-            $property = str_replace(['/', '\\'], '', lcfirst(str_replace('-', '_', $module)));
-        }
-
         return function () use ($module, $property, $args) {
             if (is_callable($module)) {
-                return $module;
+                call_user_func_array($module, func_get_args());
+
+                return;
             }
 
             $split = explode('@', $module, 2);
             $count = count($split);
-            $args  = func_get_args();
 
             try {
                 if (1 === $count) {
                     if (is_callable($split[0])) {
-                        call_user_func_array($split[0], $args);
+                        call_user_func_array($split[0], func_get_args());
                     } else {
                         $this->instantiateModule($split[0], $property, $args);
                     }
@@ -158,7 +163,7 @@ class Continy implements Container
                     // 2 === $count
                     $callback = [$this->instantiateModule($split[0], $property, $args), $split[1]];
                     if (is_callable($callback)) {
-                        call_user_func_array($callback, $args);
+                        call_user_func_array($callback, func_get_args());
                     }
                 }
             } catch (ContinyException $e) {
@@ -179,27 +184,40 @@ class Continy implements Container
      */
     private function initialize(array $setup): void
     {
-        // TODO: 2024-05-15 여기 점검을 마지막으로 했음. 여기서부터 코드 진행을 체크해 봐야 함.
-        foreach ($setup['modules'] ?? [] as $hook => $items) {
-            $acceptedArgs = (int)($items['accepted_args'] ?? 1);
-            unset($items['accepted_args']);
+        $this->resolved[__CLASS__] = __CLASS__;
+        $this->storage[__CLASS__]  = $this;
 
-            foreach ($items as $priority => $item) {
+        // Module initialization.
+        foreach ($setup['modules'] ?? [] as $hook => $modules) {
+            $acceptedArgs = (int)($modules['accepted_args'] ?? 1);
+            unset($modules['accepted_args']);
+
+            foreach ($modules as $priority => $items) {
                 $priority = (int)$priority;
-                $module   = '';
-                $property = '';
-                $args     = [];
 
-                if (is_array($item)) {
-                    $module   = $item['module'] ?? '';
-                    $property = $item['property'] ?? '';
-                    $args     = $item['args'] ?? [];
-                } elseif (is_string($item) || is_callable($item)) {
-                    $module = $item;
-                }
+                foreach ($items as $item) {
+                    $module   = '';
+                    $property = '';
+                    $args     = null;
 
-                if ($module) {
-                    add_action($hook, $this->bindModule($module, $property, $args), $priority, $acceptedArgs);
+                    if (is_array($item)) {
+                        $module   = $item['module'] ?? '';
+                        $property = $item['property'] ?? '';
+                        $args     = $item['args'] ?? null;
+                    } elseif (is_string($item) || is_callable($item)) {
+                        $module = $item;
+                    }
+
+                    if (is_string($module)) {
+                        $module = trim(str_replace('/', '\\', $module), '/\\');
+                        if (empty($property)) {
+                            $property = str_replace(['/', '\\'], '', lcfirst(str_replace('-', '_', $module)));
+                        }
+                    }
+
+                    if ($module) {
+                        add_action($hook, $this->bindModule($module, $property, $args), $priority, $acceptedArgs);
+                    }
                 }
             }
         }
@@ -208,82 +226,94 @@ class Continy implements Container
     /**
      * Instantiate a fully-qualified class
      *
-     * @param string         $module        Our module name to look for.
-     * @param array|callable $args          Module arguments. Modules may use this explicitly.
-     * @param bool           $skipInjection When true, explicitly skip dependency injection step.
+     * @param string              $component Our module name to look for.
+     * @param array|callable|null $args      Module arguments. Modules may use this explicitly.
      *
      * @return mixed
      * @throws \ShoplicKr\Continy\ContinyNotFoundException
      * @throws \ShoplicKr\Continy\ContinyException
      */
-    private function instantiate(string $module, array|callable $args = [], bool $skipInjection = false): mixed
+    private function instantiate(string $component, array|callable|null $args = null): mixed
     {
-        $fqn = $this->resolve($module);
-        if ( ! $fqn) {
-            throw new ContinyNotFoundException("Module '$module' does not exist");
+        $fqcn = $this->resolve($component);
+        if ( ! $fqcn) {
+            throw new ContinyNotFoundException("Module '$component' does not exist");
         }
 
-        if (empty($args) && ! $skipInjection) {
+        // Reuse.
+        if (isset($this->storage[$fqcn])) {
+            return $this->storage[$fqcn];
+        }
+
+        $constructorArguments = [];
+
+        if (is_null($args)) {
             try {
-                $reflection  = new \ReflectionClass($fqn);
+                $reflection  = new \ReflectionClass($fqcn);
                 $constructor = $reflection->getConstructor();
-                $parameters  = $constructor->getParameters();
-                $args        = [];
+                $parameters  = $constructor?->getParameters();
 
-                foreach ($parameters as $parameter) {
-                    $typeName   = $parameter->getType()->getName();
-                    $isNullable = $parameter->allowsNull();
+                if ($parameters) {
+                    foreach ($parameters as $parameter) {
+                        $typeName   = $parameter->getType()->getName();
+                        $isNullable = $parameter->allowsNull();
 
-                    if ($parameter->getType()->isBuiltin()) {
-                        if ($parameter->isOptional()) {
-                            $args[] = $parameter->getDefaultValue();
-                        } elseif ($isNullable) {
-                            $args[] = null;
-                        } else {
-                            throw new ContinyException(
-                                sprintf(
-                                    "Error while injecting '%s' constructor parameter '%s'." .
-                                    " Built-in type should have default value or can be nullish," .
-                                    " or invoke an explicit injection function.",
-                                    $fqn,
-                                    $parameter->getName(),
-                                ),
-                            );
+                        if ($parameter->getType()->isBuiltin()) {
+                            if ($parameter->isOptional()) {
+                                $constructorArguments[] = $parameter->getDefaultValue();
+                            } elseif ($isNullable) {
+                                $constructorArguments[] = null;
+                            } else {
+                                throw new ContinyException(
+                                    sprintf(
+                                        "Error while injecting '%s' constructor parameter '%s'." .
+                                        " Built-in type should have default value or can be nullish," .
+                                        " or invoke an explicit injection function.",
+                                        $fqcn,
+                                        $parameter->getName(),
+                                    ),
+                                );
+                            }
+                            continue;
                         }
-                        continue;
-                    }
 
-                    // Remove heading '?' for nullish parameters.
-                    if ($isNullable && str_starts_with($typeName, '?')) {
-                        $typeName = substr($typeName, 1);
-                    }
+                        // Remove heading '?' for nullish parameters.
+                        if ($isNullable && str_starts_with($typeName, '?')) {
+                            $typeName = substr($typeName, 1);
+                        }
 
-                    $args[] = $this->get($typeName);
+                        $constructorArguments[] = $this->get($typeName);
+                    }
                 }
             } catch (\ReflectionException $e) {
                 throw new ContinyException($e->getMessage(), $e->getCode(), $e);
             }
         } elseif (is_callable($args)) {
-            $args = (array)call_user_func($args, $this);
+            $constructorArguments = (array)call_user_func($args, $this);
+        } elseif (is_array($args)) {
+            $constructorArguments = $args;
         }
 
         // As of PHP 8.0+, unpacking array with string keys are possible.
-        return new $fqn(...$args);
+        $instance             = new $fqcn(...$constructorArguments);
+        $this->storage[$fqcn] = $instance;
+
+        return $instance;
     }
 
     /**
-     * @param string         $module Our module name to look for.
-     * @param string         $name   Container's dynamic property name.
-     * @param array|callable $args   Arguments for module.
+     * @param string              $module Our module name to look for.
+     * @param string              $name   Container's dynamic property name.
+     * @param array|callable|null $args   Arguments for module.
      *
      * @return mixed
      * @throws \ShoplicKr\Continy\ContinyNotFoundException
      * @throws \ShoplicKr\Continy\ContinyException
      */
-    private function instantiateModule(string $module, string $name, array|callable $args = []): mixed
+    private function instantiateModule(string $module, string $name, array|callable|null $args = null): mixed
     {
         if ( ! isset($this->$name)) {
-            $this->$name = $this->instantiate($module, $args, skipInjection: true);
+            $this->$name = $this->instantiate($module, $args);
         }
 
         return $this->$name;
@@ -303,7 +333,7 @@ class Continy implements Container
             return $globally;
         }
 
-        $locally = $this->prefix . $globally;
+        $locally = $this->moduleNsPrefix . $globally;
         if (class_exists($locally)) {
             return $locally;
         }
@@ -312,17 +342,17 @@ class Continy implements Container
     }
 
     /**
-     * @param string $module Module name to resolve
+     * @param string $component Module name to resolve
      *
      * @return string|false FQN of the module, return false if failed.
      */
-    private function resolve(string $module): string|false
+    private function resolve(string $component): string|false
     {
-        if ( ! isset($this->resolved[$module])) {
+        if ( ! isset($this->resolved[$component])) {
             // Make sure that $this->$name is instantiated by now.
-            $this->resolved[$module] = $this->moduleNameToFqcn($module);
+            $this->resolved[$component] = $this->moduleNameToFqcn($component);
         }
 
-        return $this->resolved[$module];
+        return $this->resolved[$component];
     }
 }
