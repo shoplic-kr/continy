@@ -26,9 +26,9 @@ class Continy implements Container
     public const PR_VERY_LOW  = 100;
     public const PR_LAZY      = 10000;
 
-    private string $mainFile       = '';
-    private string $moduleNsPrefix = '';
-    private string $version        = '';
+    private string $mainFile = '';
+    private string $nsPrefix = '';
+    private string $version  = '';
 
     /**
      * Component storage.
@@ -57,9 +57,8 @@ class Continy implements Container
         $defaults = [
             'main_file' => '',
             'version'   => '0.0.0',
-            'modules'   => [
-                'ns_prefix' => '',
-            ],
+            'ns_prefix' => '',
+            'modules'   => [],
             // TODO: bindings 구현.
             'bindings'  => [],
         ];
@@ -74,17 +73,12 @@ class Continy implements Container
             $args['version'] = $defaults['version'];
         }
 
-        if (empty($args['modules'])) {
-            $args['modules'] = $defaults['modules'];
-        }
-
         $this->mainFile = $args['main_file'];
         $this->version  = $args['version'];
+        $this->nsPrefix = $args['ns_prefix'] ?? '';
 
-        $this->moduleNsPrefix = $args['modules']['ns_prefix'] ?? '';
-        unset($args['modules']['ns_prefix']);
-        if ( ! str_ends_with($this->moduleNsPrefix, '\\')) {
-            $this->moduleNsPrefix .= '\\';
+        if ( ! str_ends_with($this->nsPrefix, '\\')) {
+            $this->nsPrefix .= '\\';
         }
 
         $this->initialize($args);
@@ -174,6 +168,29 @@ class Continy implements Container
     }
 
     /**
+     * Get FQCN (Fully Qualified Class Name) from module name
+     *
+     * @param string $moduleName
+     *
+     * @return string|false FQN of module, or false
+     */
+    private function getModuleFqcn(string $moduleName): string|false
+    {
+        $globally = str_replace(['/', '-'], ['\\', '_'], $moduleName);
+        $locally  = $this->nsPrefix . $globally;
+
+        if (class_exists($locally)) {
+            return $locally;
+        }
+
+        if (class_exists($globally)) {
+            return $globally;
+        }
+
+        return false;
+    }
+
+    /**
      * More specific initialization
      *
      * @param array $setup
@@ -184,6 +201,7 @@ class Continy implements Container
      */
     private function initialize(array $setup): void
     {
+        // Manually assign continy itself.
         $this->resolved[__CLASS__] = __CLASS__;
         $this->storage[__CLASS__]  = $this;
 
@@ -320,28 +338,6 @@ class Continy implements Container
     }
 
     /**
-     * Get FQCN (Fully Qualified Class Name) from module name
-     *
-     * @param string $moduleName
-     *
-     * @return string|false FQN of module, or false
-     */
-    private function moduleNameToFqcn(string $moduleName): string|false
-    {
-        $globally = str_replace(['/', '-'], ['\\', '_'], $moduleName);
-        if (class_exists($globally)) {
-            return $globally;
-        }
-
-        $locally = $this->moduleNsPrefix . $globally;
-        if (class_exists($locally)) {
-            return $locally;
-        }
-
-        return false;
-    }
-
-    /**
      * @param string $component Module name to resolve
      *
      * @return string|false FQN of the module, return false if failed.
@@ -350,7 +346,7 @@ class Continy implements Container
     {
         if ( ! isset($this->resolved[$component])) {
             // Make sure that $this->$name is instantiated by now.
-            $this->resolved[$component] = $this->moduleNameToFqcn($component);
+            $this->resolved[$component] = $this->getModuleFqcn($component);
         }
 
         return $this->resolved[$component];
