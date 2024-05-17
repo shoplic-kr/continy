@@ -5,7 +5,7 @@ use ShoplicKr\Continy\ContinyFactory;
 use ShoplicKr\ContinySample\Modules\SubModules\ReuseTester;
 
 /**
- * Class ConatinerTest
+ * Class ContainerTest
  */
 class ContainerTest extends WP_UnitTestCase
 {
