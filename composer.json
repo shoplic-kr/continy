@@ -9,6 +9,12 @@
       "ShoplicKr\\Continy\\": "src/"
     }
   },
+  "autoload-dev": {
+    "psr-4": {
+      "ShoplicKr\\Continy\\Tests\\": "tests/",
+      "ShoplicKr\\Continy\\Tests\\DummyPlugin\\": "tests-data/test-dummy-plugin/src/"
+    }
+  },
   "authors": [
     {
       "name": "changwoo",
@@ -18,6 +24,14 @@
   "require": {
     "php": ">=8.0",
     "psr/container": "^2.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9",
+    "yoast/phpunit-polyfills": "^2.0"
+  },
+  "scripts": {
+    "test:run": "WP_CORE_DIR=$PWD/tests-core WP_TESTS_DIR=$PWD/tests-lib WP_TESTS_PHPUNIT_POLYFILLS_PATH=$PWD/vendor/yoast/phpunit-polyfills vendor/bin/phpunit",
+    "test:setup": "WP_CORE_DIR=$PWD/tests-core WP_TESTS_DIR=$PWD/tests-lib ./bin/install-wp-tests.sh"
   },
   "minimum-stability": "alpha",
   "version": "0.0.1"

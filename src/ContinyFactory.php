@@ -31,6 +31,9 @@ class ContinyFactory
         }
 
         // Explicit version string is recommended.
+        if (empty($setup['version'])) {
+            $setup['version'] = '0.0.0';
+        }
 
         return new Continy($setup);
     }

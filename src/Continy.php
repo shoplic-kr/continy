@@ -33,7 +33,8 @@ class Continy implements Container
     /**
      * Component storage.
      *
-     * Usually keys are FQCNs, and values are instances of components.
+     * Key:   FQCN
+     * Value: object
      *
      * @var array<string, mixed>
      */
@@ -42,7 +43,7 @@ class Continy implements Container
     /**
      * Array of component names that are resolved.
      *
-     * Key:   Component name
+     * Key:   FQCN, or alias string
      * Value: FQCN
      *
      * @var array<string, string>
@@ -86,7 +87,11 @@ class Continy implements Container
 
     public function __get(string $name)
     {
-        return $this->storage[$name] ?? null;
+        try {
+            return $this->get($name);
+        } catch (ContinyException|ContinyNotFoundException $e) {
+            return null;
+        }
     }
 
     public function __set(string $name, $value)
@@ -96,7 +101,7 @@ class Continy implements Container
 
     public function __isset(string $name)
     {
-        return isset($this->storage[$name]) || isset($this->reserved[$name]);
+        return $this->has($name);
     }
 
     /**
@@ -134,16 +139,16 @@ class Continy implements Container
         return class_exists($id) || isset($this->resolved[$id]);
     }
 
-    private function bindModule(string|callable $module, string $property, array|callable|null $args): \Closure
+    private function bindModule(callable|string $alias, array|callable|null $args): \Closure
     {
-        return function () use ($module, $property, $args) {
-            if (is_callable($module)) {
-                call_user_func_array($module, func_get_args());
+        return function () use ($alias, $args) {
+            if (is_callable($alias)) {
+                call_user_func_array($alias, func_get_args());
 
                 return;
             }
 
-            $split = explode('@', $module, 2);
+            $split = explode('@', $alias, 2);
             $count = count($split);
 
             try {
@@ -151,11 +156,11 @@ class Continy implements Container
                     if (is_callable($split[0])) {
                         call_user_func_array($split[0], func_get_args());
                     } else {
-                        $this->instantiateModule($split[0], $property, $args);
+                        $this->instantiate($split[0], $args);
                     }
                 } else {
                     // 2 === $count
-                    $callback = [$this->instantiateModule($split[0], $property, $args), $split[1]];
+                    $callback = [$this->instantiate($split[0], $args), $split[1]];
                     if (is_callable($callback)) {
                         call_user_func_array($callback, func_get_args());
                     }
@@ -170,13 +175,13 @@ class Continy implements Container
     /**
      * Get FQCN (Fully Qualified Class Name) from module name
      *
-     * @param string $moduleName
+     * @param string $componentOrAlias
      *
      * @return string|false FQN of module, or false
      */
-    private function getModuleFqcn(string $moduleName): string|false
+    private function getComponentFqcn(string $componentOrAlias): string|false
     {
-        $globally = str_replace(['/', '-'], ['\\', '_'], $moduleName);
+        $globally = str_replace(['/', '-'], ['\\', '_'], $componentOrAlias);
         $locally  = $this->nsPrefix . $globally;
 
         if (class_exists($locally)) {
@@ -202,39 +207,32 @@ class Continy implements Container
     private function initialize(array $setup): void
     {
         // Manually assign continy itself.
+        $this->resolved['continy'] = __CLASS__;
         $this->resolved[__CLASS__] = __CLASS__;
         $this->storage[__CLASS__]  = $this;
 
+        // Binding initialization.
+        foreach ($setup['bindings'] ?? [] as $alias => $fqcn) {
+            $this->resolved[$alias] = $fqcn;
+        }
+
+        // Planned hooks.
+        $hooks = $setup['hooks'] ?? [
+            'admin_init' => 0,
+            'init'       => 0,
+        ];
+
         // Module initialization.
         foreach ($setup['modules'] ?? [] as $hook => $modules) {
-            $acceptedArgs = (int)($modules['accepted_args'] ?? 1);
-            unset($modules['accepted_args']);
+            $numArgs = (int)($hooks[$hook] ?? 1);
 
             foreach ($modules as $priority => $items) {
                 $priority = (int)$priority;
 
-                foreach ($items as $item) {
-                    $module   = '';
-                    $property = '';
-                    $args     = null;
-
-                    if (is_array($item)) {
-                        $module   = $item['module'] ?? '';
-                        $property = $item['property'] ?? '';
-                        $args     = $item['args'] ?? null;
-                    } elseif (is_string($item) || is_callable($item)) {
-                        $module = $item;
-                    }
-
-                    if (is_string($module)) {
-                        $module = trim(str_replace('/', '\\', $module), '/\\');
-                        if (empty($property)) {
-                            $property = str_replace(['/', '\\'], '', lcfirst(str_replace('-', '_', $module)));
-                        }
-                    }
-
-                    if ($module) {
-                        add_action($hook, $this->bindModule($module, $property, $args), $priority, $acceptedArgs);
+                foreach ($items as $alias) {
+                    if (isset($this->resolved[$alias])) {
+                        $callback = $this->bindModule($alias, $bindings[$alias] ?? null);
+                        add_action($hook, $callback, $priority, $numArgs);
                     }
                 }
             }
@@ -244,18 +242,18 @@ class Continy implements Container
     /**
      * Instantiate a fully-qualified class
      *
-     * @param string              $component Our module name to look for.
-     * @param array|callable|null $args      Module arguments. Modules may use this explicitly.
+     * @param string              $componentOrAlias Our module name to look for.
+     * @param array|callable|null $args             Module arguments. Modules may use this explicitly.
      *
      * @return mixed
      * @throws \ShoplicKr\Continy\ContinyNotFoundException
      * @throws \ShoplicKr\Continy\ContinyException
      */
-    private function instantiate(string $component, array|callable|null $args = null): mixed
+    private function instantiate(string $componentOrAlias, array|callable|null $args = null): mixed
     {
-        $fqcn = $this->resolve($component);
+        $fqcn = $this->resolve($componentOrAlias);
         if ( ! $fqcn) {
-            throw new ContinyNotFoundException("Module '$component' does not exist");
+            throw new ContinyNotFoundException("Module '$componentOrAlias' does not exist");
         }
 
         // Reuse.
@@ -320,35 +318,22 @@ class Continy implements Container
     }
 
     /**
-     * @param string              $module Our module name to look for.
-     * @param string              $name   Container's dynamic property name.
-     * @param array|callable|null $args   Arguments for module.
-     *
-     * @return mixed
-     * @throws \ShoplicKr\Continy\ContinyNotFoundException
-     * @throws \ShoplicKr\Continy\ContinyException
-     */
-    private function instantiateModule(string $module, string $name, array|callable|null $args = null): mixed
-    {
-        if ( ! isset($this->$name)) {
-            $this->$name = $this->instantiate($module, $args);
-        }
-
-        return $this->$name;
-    }
-
-    /**
-     * @param string $component Module name to resolve
+     * @param string $componentOrAlias Module name to resolve
      *
      * @return string|false FQN of the module, return false if failed.
      */
-    private function resolve(string $component): string|false
+    private function resolve(string $componentOrAlias): string|false
     {
-        if ( ! isset($this->resolved[$component])) {
+        if ( ! isset($this->resolved[$componentOrAlias])) {
+            $fqcn = $this->getComponentFqcn($componentOrAlias);
+
             // Make sure that $this->$name is instantiated by now.
-            $this->resolved[$component] = $this->getModuleFqcn($component);
+            $this->resolved[$componentOrAlias] = $fqcn;
+            if ($fqcn !== $componentOrAlias) {
+                $this->resolved[$componentOrAlias] = $fqcn;
+            }
         }
 
-        return $this->resolved[$component];
+        return $this->resolved[$componentOrAlias];
     }
 }

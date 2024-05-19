@@ -5,3 +5,6 @@
 *.cache
 
 vendor
+
+/tests-core
+/tests-lib

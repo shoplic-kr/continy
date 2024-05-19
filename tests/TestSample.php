@@ -1,14 +1,11 @@
 <?php
-/**
- * Class SampleTest
- *
- * @package Continy_Sample
- */
+namespace ShoplicKr\Continy\Tests;
+use \WP_UnitTestCase;
 
 /**
  * Sample test case.
  */
-class SampleTest extends WP_UnitTestCase {
+class TestSample extends WP_UnitTestCase {
 
 	/**
 	 * A single example test.
