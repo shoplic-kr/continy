@@ -105,9 +105,10 @@ class Continy implements Container
     }
 
     /**
-     * @param string $id
+     * @template T
+     * @param class-string<T> $id
      *
-     * @return mixed
+     * @return T|object|null
      * @throws \ShoplicKr\Continy\ContinyException
      * @throws \ShoplicKr\Continy\ContinyNotFoundException
      */
