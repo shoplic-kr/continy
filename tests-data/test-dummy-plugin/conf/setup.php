@@ -35,6 +35,7 @@ return [
         'init' => [
             Continy::PR_DEFAULT => [
                 'modCPT',
+                function () {},
             ],
         ],
     ],

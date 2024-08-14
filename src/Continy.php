@@ -223,8 +223,14 @@ class Continy implements Container
                 $priority = (int)$priority;
 
                 foreach ($items as $alias) {
-                    if (isset($this->resolved[$alias])) {
+                    if (is_callable($alias)) {
+                        $callback = $alias;
+                    } elseif (isset($this->resolved[$alias])) {
                         $callback = $this->bindModule($alias);
+                    } else {
+                        $callback = null;
+                    }
+                    if ($callback) {
                         add_action($hook, $callback, $priority, $numArgs);
                     }
                 }

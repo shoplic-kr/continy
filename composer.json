@@ -34,5 +34,5 @@
     "test:setup": "WP_CORE_DIR=$PWD/tests-core WP_TESTS_DIR=$PWD/tests-lib ./bin/install-wp-tests.sh"
   },
   "minimum-stability": "beta",
-  "version": "0.1.2"
+  "version": "0.1.3"
 }
