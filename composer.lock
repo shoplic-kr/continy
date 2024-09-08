@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5207da0d8c5437c3dc859cff59619806",
+    "content-hash": "64088709f12e2760968d31870998007e",
     "packages": [
         {
             "name": "psr/container",
@@ -58,6 +58,47 @@
                 "source": "https://github.com/php-fig/container/tree/2.0.2"
             },
             "time": "2021-11-05T16:47:00+00:00"
+        },
+        {
+            "name": "shoplic-kr/interface",
+            "version": "1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/shoplic-kr/continy-interface.git",
+                "reference": "fa19ca889ae99095dd8113197786edfb47f32ce4"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/shoplic-kr/continy-interface/zipball/fa19ca889ae99095dd8113197786edfb47f32ce4",
+                "reference": "fa19ca889ae99095dd8113197786edfb47f32ce4",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "ShoplicKr\\Continy\\Contract\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "changwoo",
+                    "email": "changwoo@shoplic.kr"
+                }
+            ],
+            "description": "Interface contract",
+            "homepage": "https://github.com/shoplic-kr/continy-interface",
+            "support": {
+                "issues": "https://github.com/shoplic-kr/continy-interface/issues",
+                "source": "https://github.com/shoplic-kr/continy-interface/tree/1.0.0"
+            },
+            "time": "2024-09-08T17:07:29+00:00"
         }
     ],
     "packages-dev": [
@@ -1866,7 +1907,7 @@
         }
     ],
     "aliases": [],
-    "minimum-stability": "alpha",
+    "minimum-stability": "beta",
     "stability-flags": [],
     "prefer-stable": false,
     "prefer-lowest": false,

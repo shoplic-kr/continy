@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.1.4
+
+- Remove module, and support interface (use shoplic-kr/interface instead.)
+
+
 ## 0.1.3
 
 - Fix error when Continy calls closures
