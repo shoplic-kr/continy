@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.1.5
+
+- Add codestyle.xml
+- Add tests
+- Fix line ending of bin/install-wp-tests.sh
+
+
 ## 0.1.4
 
 - Remove module, and support interface (use shoplic-kr/interface instead.)

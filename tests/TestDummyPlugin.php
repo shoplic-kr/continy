@@ -3,6 +3,7 @@
 namespace ShoplicKr\Continy\Tests;
 
 use ShoplicKr\Continy\Continy;
+use ShoplicKr\Continy\Tests\DummyPlugin\Supports\DummySupport;
 use WP_UnitTestCase;
 
 use function ShoplicKr\Continy\Tests\DummyPlugin\getTestDummyPlugin;
@@ -75,6 +76,9 @@ class TestDummyPlugin extends WP_UnitTestCase
         // Test if the post type is registered.
         $this->assertTrue(post_type_exists('dummy_type'));
         $this->assertFalse(post_type_exists('unknown_type'));
+
+        // Test injected variable.
+        $this->assertEquals(20, $instance->foo);
     }
 
     public function test_get_Binding_IDummy()
@@ -135,5 +139,12 @@ class TestDummyPlugin extends WP_UnitTestCase
             \ShoplicKr\Continy\Tests\DummyPlugin\ReflectionInjection\DependencyTwoOne::class,
             $tester->dependencyTwo->twoOne,
         );
+    }
+
+    public function test_dummySupport()
+    {
+        $ds = $this->continy->get('ds');
+        $this->assertInstanceOf(DummySupport::class, $ds);
+        $this->assertEquals(20, $ds->foo);
     }
 }

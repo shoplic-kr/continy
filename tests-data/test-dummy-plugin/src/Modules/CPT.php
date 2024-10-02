@@ -4,7 +4,7 @@ namespace ShoplicKr\Continy\Tests\DummyPlugin\Modules;
 
 class CPT
 {
-    public function __construct()
+    public function __construct(public int $foo)
     {
         if ( ! post_type_exists('dummy_type')) {
             register_post_type(
