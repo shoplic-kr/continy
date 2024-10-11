@@ -5,6 +5,6 @@
 
 *.cache
 
-/tests-core
-/tests-lib
+/tests/wp-test-core
+/tests/wp-test-lib
 /vendor

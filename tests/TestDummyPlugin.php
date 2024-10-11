@@ -3,9 +3,9 @@
 namespace ShoplicKr\Continy\Tests;
 
 use ShoplicKr\Continy\Continy;
+use ShoplicKr\Continy\ContinyException;
 use ShoplicKr\Continy\Tests\DummyPlugin\Supports\DummySupport;
 use WP_UnitTestCase;
-
 use function ShoplicKr\Continy\Tests\DummyPlugin\getTestDummyPlugin;
 
 /**
@@ -20,7 +20,7 @@ class TestDummyPlugin extends WP_UnitTestCase
 
     public static function setUpBeforeClass(): void
     {
-        self::$pluginRoot  = dirname(__FILE__, 2) . '/tests-data/test-dummy-plugin';
+        self::$pluginRoot  = dirname(__FILE__) . '/DummyPlugin';
         self::$pluginSetup = self::$pluginRoot . '/conf/setup.php';
     }
 
@@ -32,7 +32,7 @@ class TestDummyPlugin extends WP_UnitTestCase
 
     public function test_getMain()
     {
-        $this->assertEquals($this->continy->getMain(), self::$pluginRoot . '/test-dummy-plugin.php');
+        $this->assertEquals($this->continy->getMain(), self::$pluginRoot . '/dummy-plugin.php');
     }
 
     public function test_getVersion()
@@ -146,5 +146,33 @@ class TestDummyPlugin extends WP_UnitTestCase
         $ds = $this->continy->get('ds');
         $this->assertInstanceOf(DummySupport::class, $ds);
         $this->assertEquals(20, $ds->foo);
+    }
+
+    public function test_constructorCall()
+    {
+        $instance = $this->continy->get(
+            \ShoplicKr\Continy\Tests\DummyPlugin\ConstructorCall\ConstructorCall::class,
+            function ($continy) {
+                return [
+                    'Continy unit test',
+                    'Test is success'
+                ];
+            },
+        );
+
+        $this->assertEquals('Continy unit test', $instance->getVar1());
+        $this->assertEquals('Test is success', $instance->getVar2());
+
+        // You cannot get a proper instance because the class is not configured.
+        // Calling get() with constructor call does not re-use instances.
+        $ref  = new \ReflectionClass(Continy::class);
+        $prop = $ref->getProperty('storage');
+        $prop->setAccessible(true);
+        // Therefore, ConstructorCall class cannot be found in the storage.
+        $storage = $prop->getValue($this->continy);
+        $this->assertArrayNotHasKey(
+            \ShoplicKr\Continy\Tests\DummyPlugin\ConstructorCall\ConstructorCall::class,
+            $storage,
+        );
     }
 }

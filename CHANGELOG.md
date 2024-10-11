@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.2.0
+
+- Support optional second argument of get() method. 
+  The argument is a closure that returns an array for the class constructor.
+- Support call() method, supporting dependency injection for function or method parameters.
+- Unit testing is based on wp-tests.
+
+
 ## 0.1.5
 
 - Add codestyle.xml

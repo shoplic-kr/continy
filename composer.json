@@ -1,39 +1,60 @@
 {
-  "name": "shoplic-kr/continy",
-  "description": "Tiny container for WP plugins and themes.",
-  "homepage": "https://github.com/shoplic-kr/continy",
-  "type": "library",
-  "license": "GPL-2.0-or-later",
-  "autoload": {
-    "psr-4": {
-      "ShoplicKr\\Continy\\": "src/"
-    }
-  },
-  "autoload-dev": {
-    "psr-4": {
-      "ShoplicKr\\Continy\\Tests\\": "tests/",
-      "ShoplicKr\\Continy\\Tests\\DummyPlugin\\": "tests-data/test-dummy-plugin/src/"
-    }
-  },
-  "authors": [
-    {
-      "name": "changwoo",
-      "email": "changwoo@shoplic.kr"
-    }
-  ],
-  "require": {
-    "php": ">=8.0",
-    "psr/container": "^2.0",
-    "shoplic-kr/interface": "^1.0"
-  },
-  "require-dev": {
-    "phpunit/phpunit": "^9",
-    "yoast/phpunit-polyfills": "^2.0"
-  },
-  "scripts": {
-    "test": "WP_CORE_DIR=$PWD/tests-core WP_TESTS_DIR=$PWD/tests-lib WP_TESTS_PHPUNIT_POLYFILLS_PATH=$PWD/vendor/yoast/phpunit-polyfills vendor/bin/phpunit",
-    "test:setup": "WP_CORE_DIR=$PWD/tests-core WP_TESTS_DIR=$PWD/tests-lib ./bin/install-wp-tests.sh"
-  },
-  "minimum-stability": "beta",
-  "version": "0.1.5"
+    "name": "shoplic-kr/continy",
+    "description": "Tiny container for WP plugins and themes.",
+    "homepage": "https://github.com/shoplic-kr/continy",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload": {
+        "psr-4": {
+            "ShoplicKr\\Continy\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "ShoplicKr\\Continy\\Tests\\": "tests/",
+            "ShoplicKr\\Continy\\Tests\\DummyPlugin\\": "tests/DummyPlugin/src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "changwoo",
+            "email": "changwoo@shoplic.kr"
+        }
+    ],
+    "require": {
+        "php": ">=8.0",
+        "psr/container": "^2.0",
+        "shoplic-kr/interface": "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9",
+        "yoast/phpunit-polyfills": "^3.0",
+        "shoplic-kr/wp-tests": "^1.0"
+    },
+    "scripts": {
+        "wp-tests": [
+            "@wp-tests:setenv",
+            "vendor/bin/phpunit"
+        ],
+        "wp-tests:clean": [
+            "@wp-tests:setenv",
+            "rm -rf $WP_CORE_DIR $WP_TESTS_DIR"
+        ],
+        "wp-tests:setenv": [
+            "@putenv WP_CORE_DIR=./tests/wp-test-core",
+            "@putenv WP_TESTS_DIR=./tests/wp-test-lib",
+            "@putenv WP_TESTS_PHPUNIT_POLYFILLS_PATH=./vendor/yoast/phpunit-polyfills",
+            "@putenv DB_HOST=localhost",
+            "@putenv DB_USER=wordpress_tests",
+            "@putenv DB_PASS=wordpress_tests",
+            "@putenv DB_NAME=wordpress_tests"
+        ],
+        "wp-tests:setup": [
+            "@wp-tests:setenv",
+            "@wp-tests:clean",
+            "bin/install-wp-tests.sh $DB_NAME $DB_USER $DB_PASS $DB_HOST latest"
+        ]
+    },
+    "minimum-stability": "beta",
+    "version": "0.2.0"
 }

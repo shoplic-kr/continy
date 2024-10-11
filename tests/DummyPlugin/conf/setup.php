@@ -8,7 +8,7 @@ use ShoplicKr\Continy\Continy;
 use ShoplicKr\Continy\Tests\DummyPlugin;
 
 return [
-    'main_file' => dirname(__DIR__) . '/test-dummy-plugin.php',
+    'main_file' => dirname(__DIR__) . '/dummy-plugin.php',
     'version'   => '1.0.0',
 
     // Hooks definition
@@ -52,8 +52,16 @@ return [
                 'dummy' => 'type-two',
             ];
         },
-        'ds' => [
+        'ds'                                    => [
             'foo' => 20,
+        ],
+        // FunctionalCall
+        Continy::concatName(
+            DummyPlugin\FunctionCall\FunctionCall::class,
+            'configuredCall',
+        )                                       => [
+            'x' => 'Keyboard',
+            'y' => 'Mouse',
         ]
     ],
 ];

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace ShoplicKr\Continy;
 
+use ReflectionClass;
+use ReflectionFunction;
+use ReflectionMethod;
+
 /**
  * Continy - A tiny container class for WordPress plugin and theme development that supports really simple D.I.
  *
@@ -18,16 +22,16 @@ namespace ShoplicKr\Continy;
 class Continy implements Container
 {
     /* Priority constants */
-    public const PR_URGENT    = -10000;
+    public const PR_URGENT = -10000;
     public const PR_VERY_HIGH = 1;
-    public const PR_HIGH      = 5;
-    public const PR_DEFAULT   = 10;
-    public const PR_LOW       = 50;
-    public const PR_VERY_LOW  = 100;
-    public const PR_LAZY      = 10000;
+    public const PR_HIGH = 5;
+    public const PR_DEFAULT = 10;
+    public const PR_LOW = 50;
+    public const PR_VERY_LOW = 100;
+    public const PR_LAZY = 10000;
 
     private string $mainFile = '';
-    private string $version  = '';
+    private string $version = '';
 
     /**
      * Component storage.
@@ -85,110 +89,6 @@ class Continy implements Container
         $this->initialize($args['hooks'], $args['bindings'], $args['modules']);
     }
 
-    public function __get(string $name)
-    {
-        try {
-            return $this->get($name);
-        } catch (ContinyException|ContinyNotFoundException $e) {
-            return null;
-        }
-    }
-
-    public function __set(string $name, $value)
-    {
-        $this->storage[$name] = $value;
-    }
-
-    public function __isset(string $name)
-    {
-        return $this->has($name);
-    }
-
-    /**
-     * @template T
-     * @param class-string<T> $id
-     *
-     * @return T|object|null
-     * @throws \ShoplicKr\Continy\ContinyException
-     * @throws \ShoplicKr\Continy\ContinyNotFoundException
-     */
-    public function get(string $id): mixed
-    {
-        if (empty($id)) {
-            throw new ContinyException("'$id' is required");
-        }
-
-        if ( ! $this->has($id)) {
-            throw new ContinyNotFoundException(sprintf("The container does not have '%s' item.", $id));
-        }
-
-        return $this->instantiate($id);
-    }
-
-    public function getMain(): string
-    {
-        return $this->mainFile;
-    }
-
-    public function getVersion(): string
-    {
-        return $this->version;
-    }
-
-    public function has(string $id): bool
-    {
-        return class_exists($id) || isset($this->resolved[$id]);
-    }
-
-    private function bindModule(callable|string $alias): \Closure
-    {
-        return function () use ($alias) {
-            if (is_callable($alias)) {
-                call_user_func_array($alias, func_get_args());
-
-                return;
-            }
-
-            $split = explode('@', $alias, 2);
-            $count = count($split);
-
-            try {
-                if (1 === $count) {
-                    if (is_callable($split[0])) {
-                        call_user_func_array($split[0], func_get_args());
-                    } else {
-                        $this->instantiate($split[0]);
-                    }
-                } else {
-                    // 2 === $count
-                    $callback = [$this->instantiate($split[0]), $split[1]];
-                    if (is_callable($callback)) {
-                        call_user_func_array($callback, func_get_args());
-                    }
-                }
-            } catch (ContinyException $e) {
-                // Skip the module.
-                error_log('ContinyException: ' . $e->getMessage());
-            }
-        };
-    }
-
-    /**
-     * Get FQCN (Fully Qualified Class Name) from module name
-     *
-     * @param string $componentOrAlias
-     *
-     * @return string|false FQN of module, or false
-     */
-    private function getComponentFqcn(string $componentOrAlias): string|false
-    {
-        if (class_exists($componentOrAlias)) {
-            return $componentOrAlias;
-        }
-
-        return false;
-    }
-
     /**
      * More specific initialization
      *
@@ -200,7 +100,7 @@ class Continy implements Container
      *
      * @return void
      */
-    private function initialize(array $hooks, array $bindings, array $modules): void
+    protected function initialize(array $hooks, array $bindings, array $modules): void
     {
         // Manually assign continy itself.
         $this->resolved['continy'] = __CLASS__;
@@ -238,81 +138,85 @@ class Continy implements Container
         }
     }
 
+    protected function bindModule(callable|string $alias): \Closure
+    {
+        return function () use ($alias) {
+            if (is_callable($alias)) {
+                call_user_func_array($alias, func_get_args());
+
+                return;
+            }
+
+            $split = explode('@', $alias, 2);
+            $count = count($split);
+
+            try {
+                if (1 === $count) {
+                    if (is_callable($split[0])) {
+                        call_user_func_array($split[0], func_get_args());
+                    } else {
+                        $this->instantiate($split[0]);
+                    }
+                } else {
+                    // 2 === $count
+                    $callback = [$this->instantiate($split[0]), $split[1]];
+                    if (is_callable($callback)) {
+                        call_user_func_array($callback, func_get_args());
+                    }
+                }
+            } catch (ContinyException $e) {
+                // Skip the module.
+                error_log('ContinyException: ' . $e->getMessage());
+            }
+        };
+    }
+
     /**
      * Instantiate a fully-qualified class
      *
-     * @param string $fqcnOrAlias Our module name to look for.
+     * @param string        $fqcnOrAlias Our module name to look for.
+     * @param callable|null $constructorCall
      *
      * @return mixed
      * @throws \ShoplicKr\Continy\ContinyNotFoundException
      * @throws \ShoplicKr\Continy\ContinyException
      */
-    private function instantiate(string $fqcnOrAlias): mixed
+    protected function instantiate(
+        string        $fqcnOrAlias,
+        callable|null $constructorCall = null,
+    ): mixed
     {
         $fqcn = $this->resolve($fqcnOrAlias);
-        if ( ! $fqcn) {
+        if (!$fqcn) {
             throw new ContinyNotFoundException("Module '$fqcnOrAlias' does not exist");
         }
 
         // Reuse.
-        if (isset($this->storage[$fqcn])) {
+        if (is_null($constructorCall) && isset($this->storage[$fqcn])) {
             return $this->storage[$fqcn];
         }
 
-        $args = $this->arguments[$fqcn] ?? $this->arguments[$fqcnOrAlias] ?? null;
+        if ($constructorCall) {
+            $args = call_user_func_array($constructorCall, [$this, $fqcn, $fqcnOrAlias]);
+        } else {
+            $args = $this->arguments[$fqcn] ?? $this->arguments[$fqcnOrAlias] ?? null;
 
-        $constructorArguments = [];
-
-        if (is_null($args)) {
-            try {
-                $reflection  = new \ReflectionClass($fqcn);
-                $constructor = $reflection->getConstructor();
-                $parameters  = $constructor?->getParameters();
-
-                if ($parameters) {
-                    foreach ($parameters as $parameter) {
-                        $typeName   = $parameter->getType()->getName();
-                        $isNullable = $parameter->allowsNull();
-
-                        if ($parameter->getType()->isBuiltin()) {
-                            if ($parameter->isOptional()) {
-                                $constructorArguments[] = $parameter->getDefaultValue();
-                            } elseif ($isNullable) {
-                                $constructorArguments[] = null;
-                            } else {
-                                throw new ContinyException(
-                                    sprintf(
-                                        "Error while injecting '%s' constructor parameter '%s'." .
-                                        " Built-in type should have default value or can be nullish," .
-                                        " or invoke an explicit injection function.",
-                                        $fqcn,
-                                        $parameter->getName(),
-                                    ),
-                                );
-                            }
-                            continue;
-                        }
-
-                        // Remove heading '?' for nullish parameters.
-                        if ($isNullable && str_starts_with($typeName, '?')) {
-                            $typeName = substr($typeName, 1);
-                        }
-
-                        $constructorArguments[] = $this->get($typeName);
-                    }
+            if (is_null($args)) {
+                $args      = [];
+                $typeNames = self::detectParams($fqcn);
+                foreach ($typeNames as $typeName) {
+                    $args[] = $this->get($typeName);
                 }
-            } catch (\ReflectionException $e) {
-                throw new ContinyException($e->getMessage(), $e->getCode(), $e);
+            } elseif (is_callable($args)) {
+                $args = (array)call_user_func($args, $this);
             }
-        } elseif (is_callable($args)) {
-            $constructorArguments = (array)call_user_func($args, $this);
-        } elseif (is_array($args)) {
-            $constructorArguments = $args;
         }
 
         // As of PHP 8.0+, unpacking array with string keys are possible.
-        $instance             = new $fqcn(...$constructorArguments);
-        $this->storage[$fqcn] = $instance;
+        $instance = new $fqcn(...$args);
+        if (is_null($constructorCall)) {
+            $this->storage[$fqcn] = $instance;
+        }
 
         return $instance;
     }
@@ -322,9 +226,9 @@ class Continy implements Container
      *
      * @return string|false FQCN of the module, return false if failed.
      */
-    private function resolve(string $fqcnOrAlias): string|false
+    protected function resolve(string $fqcnOrAlias): string|false
     {
-        if ( ! isset($this->resolved[$fqcnOrAlias])) {
+        if (!isset($this->resolved[$fqcnOrAlias])) {
             $fqcn = $this->getComponentFqcn($fqcnOrAlias);
 
             // Make sure that $this->$name is instantiated by now.
@@ -336,5 +240,190 @@ class Continy implements Container
         }
 
         return $this->resolved[$fqcnOrAlias];
+    }
+
+    /**
+     * Get FQCN (Fully Qualified Class Name) from module name
+     *
+     * @param string $componentOrAlias
+     *
+     * @return string|false FQN of module, or false
+     */
+    protected function getComponentFqcn(string $componentOrAlias): string|false
+    {
+        if (class_exists($componentOrAlias)) {
+            return $componentOrAlias;
+        }
+
+        return false;
+    }
+
+    /**
+     * @template T
+     * @param class-string<T> $id
+     *
+     * @return T|object|null
+     * @throws \ShoplicKr\Continy\ContinyException
+     * @throws \ShoplicKr\Continy\ContinyNotFoundException
+     */
+    public function get(string $id): mixed
+    {
+        if (empty($id)) {
+            throw new ContinyException("'$id' is required");
+        }
+
+        if (!$this->has($id)) {
+            throw new ContinyNotFoundException(sprintf("The container does not have '%s' item.", $id));
+        }
+
+        if (func_num_args() > 1) {
+            $constructorCall = func_get_arg(1);
+        } else {
+            $constructorCall = null;
+        }
+
+        return $this->instantiate($id, $constructorCall);
+    }
+
+    public function has(string $id): bool
+    {
+        return class_exists($id) || isset($this->resolved[$id]);
+    }
+
+    public function __get(string $name)
+    {
+        try {
+            return $this->get($name);
+        } catch (ContinyException|ContinyNotFoundException $e) {
+            return null;
+        }
+    }
+
+    public function __set(string $name, $value)
+    {
+        $this->storage[$name] = $value;
+    }
+
+    public function __isset(string $name)
+    {
+        return $this->has($name);
+    }
+
+    /**
+     * @param callable|array|string $callable
+     * @param array|callable|null   $args
+     *
+     * @return mixed
+     * @throws ContinyException
+     */
+    public function call(
+        callable|array|string $callable,
+        array|callable|null   $args = null,
+    ): mixed
+    {
+        if (!is_callable($callable)) {
+            throw new ContinyException('$callable is not callable');
+        }
+
+        if (is_null($args)) {
+            // Find key for callable
+            if (is_array($callable)) {
+                $className = is_object($callable[0]) ? get_class($callable[0]) : $callable[0];
+                $method    = $callable[1];
+                $key       = "$className::$method";
+            } elseif (is_string($callable)) {
+                $key = $callable;
+            } else {
+                $key = null;
+            }
+            if (isset($this->arguments[$key])) {
+                $args = $this->arguments[$key];
+            } else {
+                $typeNames = self::detectParams($callable);
+                $args      = array_map(fn($typeName) => $this->get($typeName), $typeNames);
+            }
+            if ($args && is_callable($args)) {
+                $args = (array)call_user_func_array($args, [$this, $callable, $key]);
+            }
+        } elseif (is_callable($args)) {
+            $args = (array)call_user_func($args, [$this, $callable]);
+        }
+
+        return call_user_func_array($callable, $args);
+    }
+
+    /**
+     * @return string[] array of FQCN
+     * @throws ContinyException
+     */
+    public static function detectParams(callable|array|string $target): array
+    {
+        $output = [];
+
+        try {
+            if (is_string($target) && class_exists($target)) {
+                $reflection  = new ReflectionClass($target);
+                $constructor = $reflection->getConstructor();
+                $parameters  = $constructor ? $constructor->getParameters() : [];
+            } elseif (is_callable($target)) {
+                if (is_array($target) && 2 === count($target)) {
+                    $reflection = new ReflectionMethod($target[0], $target[1]);
+                } else {
+                    $reflection = new ReflectionFunction($target);
+                }
+                $parameters = $reflection->getParameters();
+            } else {
+                throw new ContinyException("'$target' is not callable");
+            }
+
+            foreach ($parameters as $parameter) {
+                $typeName   = $parameter->getType()->getName();
+                $isNullable = $parameter->allowsNull();
+
+                if ($parameter->getType()->isBuiltin()) {
+                    if ($parameter->isOptional()) {
+                        $output[] = $parameter->getDefaultValue();
+                    } elseif ($isNullable) {
+                        $output[] = null;
+                    } else {
+                        throw new ContinyException(
+                            sprintf(
+                                "Error while injecting parameter '%s'." .
+                                " Built-in type should have default value or can be nullish," .
+                                " or invoke an explicit injection function.",
+                                $parameter->getName(),
+                            ),
+                        );
+                    }
+                    continue;
+                }
+
+                // Remove heading '?' for nullish parameters.
+                if ($isNullable && str_starts_with($typeName, '?')) {
+                    $typeName = substr($typeName, 1);
+                }
+
+                $output[] = $typeName;
+            }
+        } catch (\ReflectionException $e) {
+            throw new ContinyException('ReflectionException: ' . $e->getMessage(), $e->getCode(), $e);
+        }
+
+        return $output;
+    }
+
+    public static function concatName(string $className, string $methodName): string
+    {
+        return $className . '::' . $methodName;
+    }
+
+    public function getMain(): string
+    {
+        return $this->mainFile;
+    }
+
+    public function getVersion(): string
+    {
+        return $this->version;
     }
 }
