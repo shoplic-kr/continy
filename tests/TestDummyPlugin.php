@@ -153,10 +153,10 @@ class TestDummyPlugin extends WP_UnitTestCase
         $instance = $this->continy->get(
             \ShoplicKr\Continy\Tests\DummyPlugin\ConstructorCall\ConstructorCall::class,
             function ($continy) {
-                return [
+                return new \ShoplicKr\Continy\Tests\DummyPlugin\ConstructorCall\ConstructorCall(
                     'Continy unit test',
-                    'Test is success'
-                ];
+                    'Test is success',
+                );
             },
         );
 

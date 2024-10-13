@@ -174,8 +174,10 @@ class Continy implements Container
     /**
      * Instantiate a fully-qualified class
      *
-     * @param string        $fqcnOrAlias Our module name to look for.
-     * @param callable|null $constructorCall
+     * @param string        $fqcnOrAlias     Our module name to look for.
+     * @param callable|bool $constructorCall True:     instances are always created
+     *                                       False:    instance is re-used if container has one. This is default.
+     *                                       Callable: In-place drop-in. You can override the instance.
      *
      * @return mixed
      * @throws \ShoplicKr\Continy\ContinyNotFoundException
@@ -183,7 +185,7 @@ class Continy implements Container
      */
     protected function instantiate(
         string        $fqcnOrAlias,
-        callable|null $constructorCall = null,
+        callable|bool $constructorCall = false,
     ): mixed
     {
         $fqcn = $this->resolve($fqcnOrAlias);
@@ -191,30 +193,31 @@ class Continy implements Container
             throw new ContinyNotFoundException("Module '$fqcnOrAlias' does not exist");
         }
 
+        // Drop-in.
+        if (is_callable($constructorCall)) {
+            return call_user_func_array($constructorCall, [$this, $fqcn, $fqcnOrAlias]);
+        }
+
         // Reuse.
-        if (is_null($constructorCall) && isset($this->storage[$fqcn])) {
+        if (false === $constructorCall && isset($this->storage[$fqcn])) {
             return $this->storage[$fqcn];
         }
 
-        if ($constructorCall) {
-            $args = call_user_func_array($constructorCall, [$this, $fqcn, $fqcnOrAlias]);
-        } else {
-            $args = $this->arguments[$fqcn] ?? $this->arguments[$fqcnOrAlias] ?? null;
-
-            if (is_null($args)) {
-                $args      = [];
-                $typeNames = self::detectParams($fqcn);
-                foreach ($typeNames as $typeName) {
-                    $args[] = $this->get($typeName);
-                }
-            } elseif (is_callable($args)) {
-                $args = (array)call_user_func($args, $this);
+        $args = $this->arguments[$fqcn] ?? $this->arguments[$fqcnOrAlias] ?? null;
+        if (is_null($args)) {
+            $args      = [];
+            $typeNames = $this->detectParams($fqcn);
+            foreach ($typeNames as $typeName) {
+                $args[] = $this->get($typeName);
             }
+        } elseif (is_callable($args)) {
+            $args = (array)call_user_func($args, $this);
         }
 
         // As of PHP 8.0+, unpacking array with string keys are possible.
         $instance = new $fqcn(...$args);
-        if (is_null($constructorCall)) {
+
+        if (!$constructorCall) {
             $this->storage[$fqcn] = $instance;
         }
 
@@ -279,7 +282,7 @@ class Continy implements Container
         if (func_num_args() > 1) {
             $constructorCall = func_get_arg(1);
         } else {
-            $constructorCall = null;
+            $constructorCall = false;
         }
 
         return $this->instantiate($id, $constructorCall);
@@ -310,22 +313,22 @@ class Continy implements Container
     }
 
     /**
-     * @param callable|array|string $callable
-     * @param array|callable|null   $args
+     * @param callable|array|string       $callable
+     * @param array|string|callable|false $args
      *
      * @return mixed
      * @throws ContinyException
      */
     public function call(
-        callable|array|string $callable,
-        array|callable|null   $args = null,
+        callable|array|string       $callable,
+        array|string|callable|false $args = false,
     ): mixed
     {
         if (!is_callable($callable)) {
             throw new ContinyException('$callable is not callable');
         }
 
-        if (is_null($args)) {
+        if (false === $args) {
             // Find key for callable
             if (is_array($callable)) {
                 $className = is_object($callable[0]) ? get_class($callable[0]) : $callable[0];
@@ -339,7 +342,7 @@ class Continy implements Container
             if (isset($this->arguments[$key])) {
                 $args = $this->arguments[$key];
             } else {
-                $typeNames = self::detectParams($callable);
+                $typeNames = $this->detectParams($callable);
                 $args      = array_map(fn($typeName) => $this->get($typeName), $typeNames);
             }
             if ($args && is_callable($args)) {
@@ -356,7 +359,7 @@ class Continy implements Container
      * @return string[] array of FQCN
      * @throws ContinyException
      */
-    public static function detectParams(callable|array|string $target): array
+    protected function detectParams(callable|array|string $target): array
     {
         $output = [];
 
@@ -388,10 +391,11 @@ class Continy implements Container
                     } else {
                         throw new ContinyException(
                             sprintf(
-                                "Error while injecting parameter '%s'." .
+                                "Error while injecting parameter '%s' to '%s'." .
                                 " Built-in type should have default value or can be nullish," .
                                 " or invoke an explicit injection function.",
                                 $parameter->getName(),
+                                self::formatName($target),
                             ),
                         );
                     }
@@ -415,6 +419,21 @@ class Continy implements Container
     public static function concatName(string $className, string $methodName): string
     {
         return $className . '::' . $methodName;
+    }
+
+    public static function formatName(mixed $maybeCallable): string
+    {
+        if (is_array($maybeCallable) && 2 === count($maybeCallable)) {
+            $object = is_object($maybeCallable[0]) ? get_class($maybeCallable[0]) : $maybeCallable[0];
+            $method = $maybeCallable[1];
+            return "$object::$method";
+        } elseif (is_string($maybeCallable)) {
+            return $maybeCallable;
+        } elseif ($maybeCallable instanceof \Closure) {
+            return '{closure}';
+        }
+
+        return (string)$maybeCallable;
     }
 
     public function getMain(): string

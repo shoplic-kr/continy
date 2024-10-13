@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.2.1
+
+- Optional second parameter of get(), call() is sightly changed.
+  - Closures should return an object.
+  - You can pass 'true' to suppress object reuse.
+
+
 ## 0.2.0
 
 - Support optional second argument of get() method. 
